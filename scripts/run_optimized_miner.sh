@@ -315,13 +315,14 @@ fi
 # Funcție pentru a porni monitorizarea
 start_monitoring() {
     echo "Pornirea monitorizării minerului..."
-    pm2 start $PYTHON_CMD --name data-monitor -- ./scripts/monitor_data_quality.py --db_path $DB_PATH --check_interval $MONITOR_INTERVAL
+    PYTHONPATH=$BASE_DIR pm2 start $PYTHON_CMD --name data-monitor -- ./scripts/monitor_data_quality.py --db_path $DB_PATH --check_interval $MONITOR_INTERVAL
 }
 
 # Funcție pentru a porni minerul în mod online
 start_miner() {
     echo "Pornire miner în modul online..."
-    pm2 start $PYTHON_CMD --name data-miner -- ./neurons/miner.py \
+    # Setăm PYTHONPATH pentru a rezolva problema de import
+    PYTHONPATH=$BASE_DIR pm2 start $PYTHON_CMD --name data-miner -- ./neurons/miner.py \
             --wallet.name $WALLET_NAME \
             --wallet.hotkey $WALLET_HOTKEY \
             --neuron.database_name $DB_NAME \
@@ -346,6 +347,6 @@ echo "Pentru a vedea logurile minerului: pm2 logs data-miner"
 echo "Pentru a vedea monitorizarea: pm2 logs data-monitor"
 
 # Programăm curățarea automată a datelor vechi la fiecare 24h
-(crontab -l 2>/dev/null; echo "0 0 * * * cd $BASE_DIR && $PYTHON_CMD ./scripts/clean_old_data.py --db_path $DB_PATH --days 28") | crontab -
+(crontab -l 2>/dev/null; echo "0 0 * * * cd $BASE_DIR && PYTHONPATH=$BASE_DIR $PYTHON_CMD ./scripts/clean_old_data.py --db_path $DB_PATH --days 28") | crontab -
 
 echo "Curățarea automată a datelor vechi a fost configurată la 00:00 în fiecare zi" 
