@@ -18,11 +18,22 @@ if [ ! -d "$BASE_DIR/bittensor_env" ]; then
     echo "Instalez dependințele în mediul virtual..."
     source bittensor_env/bin/activate
     
-    # Instalăm dependențele necesare
+    # Instalăm pachetul local fără dependențe
     pip install -e . --no-deps
+    
+    # Instalăm dependențele principale
     pip install torch pandas numpy bittensor wandb fastapi pydantic
     pip install sqlitedict requests pytest pytest-asyncio asyncio
     
+    # Instalăm dependențele pentru scraping
+    pip install apify-client aiohttp lxml beautifulsoup4 praw
+    
+    deactivate
+else
+    # Actualizăm dependențele în cazul în care mediul virtual există deja
+    echo "Actualizăm dependențele necesare..."
+    source bittensor_env/bin/activate
+    pip install apify-client aiohttp lxml beautifulsoup4 praw
     deactivate
 fi
 
@@ -30,6 +41,23 @@ fi
 PYTHON_CMD="$BASE_DIR/bittensor_env/bin/python"
 
 echo "Se folosește Python din mediul virtual: $PYTHON_CMD"
+
+# Verifică dacă .env există pentru configurarea scraperelor
+if [ ! -f "$BASE_DIR/.env" ]; then
+    echo "Creăm fișier .env pentru configurarea scraperelor..."
+    cat > "$BASE_DIR/.env" <<EOL
+# Configurare pentru Reddit personal account scraping
+REDDIT_CLIENT_ID=YOUR_CLIENT_ID
+REDDIT_CLIENT_SECRET=YOUR_CLIENT_SECRET
+REDDIT_USER_AGENT=script:data_universe:v1.0 (by /u/your_username)
+REDDIT_USERNAME=your_username
+REDDIT_PASSWORD=your_password
+
+# Configurare pentru Apify
+APIFY_API_TOKEN=YOUR_APIFY_API_TOKEN
+EOL
+    echo "Fișier .env creat. Te rugăm să-l editezi cu credențialele tale pentru Reddit și/sau Apify."
+fi
 
 # Setări configurabile
 WALLET_NAME="${1:-cold_wallet}"  # Primul argument sau valoare implicită
@@ -349,4 +377,7 @@ echo "Pentru a vedea monitorizarea: pm2 logs data-monitor"
 # Programăm curățarea automată a datelor vechi la fiecare 24h
 (crontab -l 2>/dev/null; echo "0 0 * * * cd $BASE_DIR && PYTHONPATH=$BASE_DIR $PYTHON_CMD ./scripts/clean_old_data.py --db_path $DB_PATH --days 28") | crontab -
 
-echo "Curățarea automată a datelor vechi a fost configurată la 00:00 în fiecare zi" 
+echo "Curățarea automată a datelor vechi a fost configurată la 00:00 în fiecare zi"
+echo ""
+echo "NOTĂ IMPORTANTĂ: Pentru a utiliza scraperele, editează fișierul .env cu credențialele tale pentru Reddit și/sau Apify:"
+echo "nano .env" 
