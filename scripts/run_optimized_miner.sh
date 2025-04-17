@@ -8,6 +8,18 @@ if ! command -v pm2 &> /dev/null; then
     npm install -g pm2
 fi
 
+# Găsim comanda Python corectă
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "EROARE: Nu s-a găsit Python. Te rugăm să instalezi Python 3.10 sau mai recent."
+    exit 1
+fi
+
+echo "Se folosește comanda Python: $PYTHON_CMD"
+
 # Setări configurabile
 WALLET_NAME="${1:-cold_wallet}"  # Primul argument sau valoare implicită
 WALLET_HOTKEY="${2:-hotkey_wallet}"  # Al doilea argument sau valoare implicită
@@ -23,7 +35,7 @@ DB_PATH="$BASE_DIR/$DB_NAME"
 # Funcție pentru a rula un miner în modul offline pentru a construi o bază de date inițială
 init_db() {
     echo "Inițializăm baza de date în modul offline..."
-    python ./neurons/miner.py --offline \
+    $PYTHON_CMD ./neurons/miner.py --offline \
            --neuron.database_name $DB_NAME \
            --neuron.max_database_size_gb_hint $MAX_DB_SIZE_GB \
            --neuron.scraping_config_file $SCRAPING_CONFIG \
@@ -33,19 +45,19 @@ init_db() {
 # Funcție pentru a curăța datele vechi
 clean_old_data() {
     echo "Curățăm datele mai vechi de 28 de zile..."
-    python ./scripts/clean_old_data.py --db_path $DB_PATH --days 28
+    $PYTHON_CMD ./scripts/clean_old_data.py --db_path $DB_PATH --days 28
 }
 
 # Funcție pentru a porni monitorizarea
 start_monitoring() {
     echo "Pornirea monitorizării minerului..."
-    pm2 start python --name data-monitor -- ./scripts/monitor_data_quality.py --db_path $DB_PATH --check_interval $MONITOR_INTERVAL
+    pm2 start $PYTHON_CMD --name data-monitor -- ./scripts/monitor_data_quality.py --db_path $DB_PATH --check_interval $MONITOR_INTERVAL
 }
 
 # Funcție pentru a porni minerul în mod online
 start_miner() {
     echo "Pornire miner în modul online..."
-    pm2 start python --name data-miner -- ./neurons/miner.py \
+    pm2 start $PYTHON_CMD --name data-miner -- ./neurons/miner.py \
             --wallet.name $WALLET_NAME \
             --wallet.hotkey $WALLET_HOTKEY \
             --neuron.database_name $DB_NAME \
@@ -83,6 +95,6 @@ echo "Pentru a vedea logurile minerului: pm2 logs data-miner"
 echo "Pentru a vedea monitorizarea: pm2 logs data-monitor"
 
 # Programăm curățarea automată a datelor vechi la fiecare 24h
-(crontab -l 2>/dev/null; echo "0 0 * * * cd $BASE_DIR && python ./scripts/clean_old_data.py --db_path $DB_PATH --days 28") | crontab -
+(crontab -l 2>/dev/null; echo "0 0 * * * cd $BASE_DIR && $PYTHON_CMD ./scripts/clean_old_data.py --db_path $DB_PATH --days 28") | crontab -
 
 echo "Curățarea automată a datelor vechi a fost configurată la 00:00 în fiecare zi" 
