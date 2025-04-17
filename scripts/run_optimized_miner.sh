@@ -21,19 +21,21 @@ if [ ! -d "$BASE_DIR/bittensor_env" ]; then
     # Instalăm pachetul local fără dependențe
     pip install -e . --no-deps
     
-    # Instalăm dependențele principale
+    # Instalăm toate dependențele necesare pentru miner
     pip install torch pandas numpy bittensor wandb fastapi pydantic
     pip install sqlitedict requests pytest pytest-asyncio asyncio
-    
-    # Instalăm dependențele pentru scraping
-    pip install apify-client aiohttp lxml beautifulsoup4 praw
+    pip install apify-client aiohttp lxml beautifulsoup4 praw asyncpraw
+    pip install python-dotenv loguru aiofiles grpcio typer
+    pip install uvicorn websockets jsonschema dynaconf orjson
     
     deactivate
 else
     # Actualizăm dependențele în cazul în care mediul virtual există deja
     echo "Actualizăm dependențele necesare..."
     source bittensor_env/bin/activate
-    pip install apify-client aiohttp lxml beautifulsoup4 praw
+    pip install apify-client aiohttp lxml beautifulsoup4 praw asyncpraw
+    pip install python-dotenv loguru aiofiles grpcio typer
+    pip install uvicorn websockets jsonschema dynaconf orjson
     deactivate
 fi
 
