@@ -1,0 +1,45 @@
+{
+  "scraper_configs": [
+    {
+      "scraper_id": "X.apidojo",
+      "cadence_seconds": 180,
+      "labels_to_scrape": [
+        {
+          "label_choices": [
+            "#bittensor",
+            "#tao",
+            "#decentralizedfinance",
+            "#bitcointechnology"
+          ],
+          "max_age_hint_minutes": 720,
+          "max_data_entities": 100
+        },
+        {
+          "label_choices": ["#bitcoinmining", "#bitcoinnews"],
+          "max_age_hint_minutes": 1080,
+          "max_data_entities": 50
+        }
+      ]
+    },
+    {
+      "scraper_id": "Reddit.custom",
+      "cadence_seconds": 120,
+      "labels_to_scrape": [
+        {
+          "label_choices": ["r/Bittensor_", "r/Polkadot"],
+          "max_age_hint_minutes": 720,
+          "max_data_entities": 80
+        },
+        {
+          "label_choices": [
+            "r/Cryptocurrency",
+            "r/Cryptomarkets",
+            "r/EthereumClassic"
+          ],
+          "max_age_hint_minutes": 720,
+          "max_data_entities": 70
+        }
+      ]
+    }
+  ]
+}
