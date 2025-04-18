@@ -6,33 +6,37 @@
       "labels_to_scrape": [
         {
           "label_choices": [
-            "#SOONISTHEREDPILL",
-            "#BoogaHeights",
-            "#Esaret",
-            "#Balochistan",
-            "#crypto",
             "#bitcoin",
-            "#Gold",
-            "#Arsenal",
-            "#Russia",
-            "#NATO",
-            "#Trump"
+            "#bitcoincharts",
+            "#bitcoiner",
+            "#bitcoinexchange",
+            "#bitcoinmining",
+            "#bitcoinnews",
+            "#bitcoinprice",
+            "#bitcointechnology",
+            "#bitcointrading",
+            "#bittensor",
+            "#btc",
+            "#cryptocurrency",
+            "#crypto"
           ],
-          "max_data_entities": 200
+          "max_data_entities": 100
         },
         {
           "label_choices": [
-            "#cryptocurrencies",
-            "#ethereum",
-            "#NFT",
-            "#blockchain",
-            "#btc",
-            "#bittensor",
-            "#altcoins",
             "#defi",
-            "#tao"
+            "#decentralizedfinance",
+            "#tao",
+            "#israel",
+            "#ukraine",
+            "#trump",
+            "#harris",
+            "#macrocosmos",
+            "#macrocosmosai",
+            "#SOONISTHEREDPILL",
+            "#BoogaHeights"
           ],
-          "max_data_entities": 150
+          "max_data_entities": 100
         }
       ]
     },
@@ -41,18 +45,37 @@
       "cadence_seconds": 120,
       "labels_to_scrape": [
         {
-          "label_choices": ["r/Bittensor_", "r/Polkadot"],
-          "max_age_hint_minutes": 720,
+          "label_choices": [
+            "r/bitcoin",
+            "r/bitcoincash",
+            "r/bittensor_",
+            "r/btc",
+            "r/cryptocurrency",
+            "r/cryptomarkets",
+            "r/worldpolitics",
+            "r/worldnews",
+            "r/wallstreetbets",
+            "r/politics"
+          ],
+          "max_age_hint_minutes": 60,
           "max_data_entities": 80
         },
         {
           "label_choices": [
-            "r/Cryptocurrency",
-            "r/Cryptomarkets",
-            "r/EthereumClassic"
+            "r/ethereumclassic",
+            "r/ethtrader",
+            "r/filecoin",
+            "r/monero",
+            "r/polkadot",
+            "r/solana",
+            "r/ethereum",
+            "r/nft",
+            "r/defi",
+            "r/cryptotechnology",
+            "r/altstreetbets"
           ],
-          "max_age_hint_minutes": 720,
-          "max_data_entities": 70
+          "max_age_hint_minutes": 120,
+          "max_data_entities": 80
         }
       ]
     }
