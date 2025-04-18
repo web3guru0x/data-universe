@@ -107,7 +107,7 @@ def show_entities(db_path, limit=10, source='all', show_content=False):
         cursor = conn.cursor()
         
         # Construiește interogarea în funcție de sursă
-        query = "SELECT id, datetime, source, label, content, contentSizeBytes FROM DataEntity"
+        query = "SELECT uri, datetime, source, label, content, contentSizeBytes FROM DataEntity"
         params = []
         
         if source != 'all':
@@ -127,10 +127,10 @@ def show_entities(db_path, limit=10, source='all', show_content=False):
         print("=" * 50)
         
         for entity in entities:
-            entity_id, dt_str, source_num, label, content, size = entity
+            uri, dt_str, source_num, label, content, size = entity
             source_name = "Reddit" if source_num == 1 else "Twitter/X" if source_num == 7 else f"Altă sursă ({source_num})"
             
-            print(f"\nID: {entity_id}")
+            print(f"\nURI: {uri}")
             print(f"Data: {dt_str}")
             print(f"Sursă: {source_name}")
             print(f"Etichetă: {label}")
@@ -143,7 +143,7 @@ def show_entities(db_path, limit=10, source='all', show_content=False):
                     print(f"Conținut: {json.dumps(content_json, indent=2, ensure_ascii=False)[:500]}...")
                 except:
                     # Dacă nu e JSON, afișăm ca text
-                    print(f"Conținut: {content[:500]}...")
+                    print(f"Conținut: {str(content)[:500]}...")
             
             print("-" * 30)
         
