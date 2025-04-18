@@ -31,9 +31,7 @@ async def test_twitter_scraper():
     # Creează un scraper Twitter
     scraper = ApiDojoTwitterScraper()
     
-    # Definește un interval de timp pentru test (ultimele 24 de ore)
-    now = dt.datetime.now(dt.timezone.utc)
-    yesterday = now - dt.timedelta(hours=24)
+    # Nu mai folosim interval de timp, căutăm direct hashtag-urile
     
     # Lista de hashtag-uri de testat - inclusiv cele populare din trending
     hashtags = [
@@ -53,56 +51,55 @@ async def test_twitter_scraper():
     for hashtag in hashtags:
         print(f"\n--- Testez scraping pentru {hashtag} ---")
         
-        # Creează configurația pentru scraping
-        config = ScrapeConfig(
-            entity_limit=10,  # Limităm la 10 rezultate pentru test
-            date_range=DateRange(
-                start=yesterday,
-                end=now,
-            ),
-            labels=[DataLabel(value=hashtag)],
+        # Modificăm configurația pentru a căuta direct hash-tag-uri fără filtrare după dată
+        run_input = {
+            "searchTerms": [hashtag],
+            "maxTweets": 10,
+            "maxRequestRetries": 5
+        }
+        
+        # Configurați scraperul manual
+        run_config = RunConfig(
+            actor_id="61RPP7dywgiy0JPD0", # ApiDojo Twitter Scraper actor ID
+            debug_info=f"Test direct {hashtag}",
+            max_data_entities=10,
+            timeout_secs=120,
         )
         
-        # Execută scraping-ul
+        # Inițializați runner-ul
+        runner = ActorRunner()
+        
         try:
-            print(f"Interval de timp: {yesterday.strftime('%Y-%m-%d %H:%M')} până la {now.strftime('%Y-%m-%d %H:%M')}")
-            entities = await scraper.scrape(config)
+            print(f"Căutare directă pentru: {hashtag}")
+            # Rulează actorul direct pentru a obține rezultate
+            dataset = await runner.run(run_config, run_input)
             
-            if not entities:
-                print(f"Nu s-au găsit entități pentru {hashtag}")
+            if not dataset:
+                print(f"Nu s-au găsit rezultate pentru {hashtag}")
             else:
-                print(f"S-au găsit {len(entities)} entități pentru {hashtag}")
-                print("\nPrimele 3 entități:")
-                for i, entity in enumerate(entities[:3]):
-                    print(f"\nEntitatea {i+1}:")
-                    print(f"URI: {entity.uri}")
-                    print(f"Timestamp: {entity.datetime}")
-                    print(f"Mărime: {entity.content_size_bytes} bytes")
-                    
-                    # Încearcă să decodifice și să afișeze conținutul JSON
-                    try:
-                        content = json.loads(entity.content)
-                        print(f"Text: {content.get('text', 'N/A')[:100]}...")
-                        print(f"Hashtag-uri: {content.get('tweet_hashtags', 'N/A')}")
-                    except json.JSONDecodeError:
-                        print(f"Conținut (primele 100 caractere): {entity.content[:100]}...")
+                print(f"S-au găsit {len(dataset)} rezultate pentru {hashtag}")
+                print("\nPrimele 3 rezultate:")
                 
-                # Salvează un eșantion de entități pentru analiză ulterioară
-                with open(f"twitter_{hashtag.replace('#', '')}_sample.json", "w") as f:
-                    sample_data = [
-                        {
-                            "uri": e.uri,
-                            "datetime": e.datetime.isoformat(),
-                            "content": json.loads(e.content) if isinstance(e.content, str) else e.content,
-                            "size_bytes": e.content_size_bytes
-                        }
-                        for e in entities[:5]  # Salvăm primele 5 entități
-                    ]
-                    json.dump(sample_data, f, indent=2, default=str)
-                print(f"\nS-a salvat un eșantion în twitter_{hashtag.replace('#', '')}_sample.json")
+                for i, item in enumerate(dataset[:3]):
+                    print(f"\nRezultatul {i+1}:")
+                    if "url" in item:
+                        print(f"URL: {item['url']}")
+                    if "createdAt" in item:
+                        print(f"Data creării: {item['createdAt']}")
+                    if "text" in item:
+                        print(f"Text: {item['text'][:100]}...")
+                    
+                    if "entities" in item and "hashtags" in item["entities"]:
+                        hashtags_list = [f"#{tag['text']}" for tag in item["entities"]["hashtags"]]
+                        print(f"Hashtag-uri: {hashtags_list}")
+                
+                # Salvează rezultatele brute pentru analiză
+                with open(f"twitter_{hashtag.replace('#', '')}_raw.json", "w") as f:
+                    json.dump(dataset[:5], f, indent=2)
+                print(f"\nS-au salvat rezultatele brute în twitter_{hashtag.replace('#', '')}_raw.json")
         
         except Exception as e:
-            print(f"Eroare la scraping pentru {hashtag}: {str(e)}")
+            print(f"Eroare la scraping direct pentru {hashtag}: {str(e)}")
 
 if __name__ == "__main__":
     asyncio.run(test_twitter_scraper()) 
