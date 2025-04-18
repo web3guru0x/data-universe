@@ -5,7 +5,6 @@ import sys
 import json
 import time
 import re
-import asyncio
 import subprocess
 import datetime as dt
 from watchdog.observers import Observer
@@ -18,6 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(script_dir, '..')))
 # Calea către fișierul de log al minerului
 LOG_FILE = os.path.expanduser('~/.bittensor/miners/default/miner1/netuid13/None/events.log')
 LOG_FILE_ALT = os.path.expanduser('~/.pm2/logs/data-miner-out.log')
+LOG_DIR_PM2 = os.path.expanduser('~/.pm2/logs')
 
 # Calea către fișierul de configurare
 CONFIG_FILE = os.path.join(script_dir, '..', 'scraping', 'custom_config.json')
@@ -107,142 +107,171 @@ def restart_miner():
         print(f"Eroare la repornirea miner-ului: {e}")
         return False
 
-class LogHandler(FileSystemEventHandler):
-    def __init__(self):
-        self.last_position = 0
-        self.config = load_config()
-        self.last_config_update = 0
-        self.pending_tags = {}  # {source_id: [tag1, tag2, ...]}
-        
-        # Inițializează poziția inițială a fișierului de log
+def get_pm2_logs():
+    """Obține ultimele log-uri direct din PM2 pentru data-miner."""
+    try:
+        # Folosim comandă simplă pentru a vedea log-urile recente
+        result = subprocess.run(["pm2", "logs", "--lines", "200", "--nostream"], 
+                               capture_output=True, text=True, check=True)
+        return result.stdout
+    except Exception as e:
+        print(f"Eroare la obținerea log-urilor PM2: {e}")
+        return ""
+
+def scan_log_files():
+    """Scanează toate fișierele de log posibile și returnează conținutul lor."""
+    log_content = ""
+    
+    # Verifică toate log-urile din directorul PM2
+    if os.path.exists(LOG_DIR_PM2):
+        for file in os.listdir(LOG_DIR_PM2):
+            if "data-miner" in file and file.endswith(".log"):
+                try:
+                    with open(os.path.join(LOG_DIR_PM2, file), 'r') as f:
+                        log_content += f.read()
+                        print(f"Scanat fișier log PM2: {file}")
+                except Exception as e:
+                    print(f"Eroare la citirea {file}: {e}")
+    
+    # Verifică și log-ul principal al minerului
+    if os.path.exists(LOG_FILE):
         try:
-            if os.path.exists(LOG_FILE):
-                self.log_file = LOG_FILE
-                self.last_position = os.path.getsize(LOG_FILE)
-            elif os.path.exists(LOG_FILE_ALT):
-                self.log_file = LOG_FILE_ALT
-                self.last_position = os.path.getsize(LOG_FILE_ALT)
-            else:
-                print(f"Nu s-a găsit niciun fișier de log. Se așteaptă crearea.")
-                self.log_file = LOG_FILE
+            with open(LOG_FILE, 'r') as f:
+                log_content += f.read()
+                print(f"Scanat fișier log principal: {LOG_FILE}")
         except Exception as e:
-            print(f"Eroare la inițializarea poziției fișierului de log: {e}")
-            self.log_file = LOG_FILE
-    
-    def on_modified(self, event):
-        if not os.path.exists(self.log_file):
-            # Verifică fișierul alternativ dacă cel principal nu există
-            if os.path.exists(LOG_FILE_ALT) and self.log_file != LOG_FILE_ALT:
-                self.log_file = LOG_FILE_ALT
-                self.last_position = 0
-            else:
-                return
-        
-        if event.src_path == self.log_file:
-            self.process_log()
-    
-    def process_log(self):
+            print(f"Eroare la citirea log-ului principal: {e}")
+            
+    # Verifică și log-ul alternativ
+    if os.path.exists(LOG_FILE_ALT):
         try:
-            with open(self.log_file, 'r') as f:
-                f.seek(self.last_position)
-                new_content = f.read()
-                self.last_position = f.tell()
-            
-            self.process_log_content(new_content)
-            
+            with open(LOG_FILE_ALT, 'r') as f:
+                log_content += f.read()
+                print(f"Scanat fișier log alternativ: {LOG_FILE_ALT}")
         except Exception as e:
-            print(f"Eroare la procesarea log-ului: {e}")
-    
-    def process_log_content(self, content):
-        # Caută cereri de bucket în conținut
-        bucket_matches = re.finditer(BUCKET_REQUEST_PATTERN, content)
-        
-        for match in bucket_matches:
-            tag = match.group(1)
+            print(f"Eroare la citirea log-ului alternativ: {e}")
             
-            # Identifică sursa (1=Reddit, 2/7=Twitter)
-            source_match = re.search(SOURCE_PATTERN, content[max(0, match.start()-100):match.end()+100])
-            if source_match:
-                source_id = int(source_match.group(1))
-                
-                # Adaugă tag-ul la lista de tag-uri în așteptare pentru această sursă
-                if source_id not in self.pending_tags:
-                    self.pending_tags[source_id] = []
-                
-                if tag not in self.pending_tags[source_id]:
-                    self.pending_tags[source_id].append(tag)
-                    print(f"Tag nou detectat: '{tag}' pentru sursa {source_id}")
-        
-        # Verifică dacă avem tag-uri în așteptare și dacă a trecut suficient timp de la ultima actualizare
-        current_time = time.time()
-        if self.pending_tags and (current_time - self.last_config_update > 60):  # 60 secunde între actualizări
-            self.update_config()
+    return log_content
+
+def extract_pm2_log_commands():
+    """Extrage toate comenzile 'pm2 logs' care ar putea arăta log-urile minerului."""
+    commands = [
+        ["pm2", "logs"],
+        ["pm2", "logs", "data-miner", "--lines", "100"],
+        ["pm2", "logs", "all", "--lines", "100"],
+        ["pm2", "logs", "--raw"]
+    ]
     
-    def update_config(self):
-        # Reîncarcă configurația pentru a avea cea mai recentă versiune
-        self.config = load_config()
-        if not self.config:
-            return
+    log_content = ""
+    for cmd in commands:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout:
+                log_content += result.stdout
+                print(f"Extras log-uri cu comanda: {' '.join(cmd)}")
+        except Exception as e:
+            print(f"Eroare la rularea comenzii {' '.join(cmd)}: {e}")
+            
+    return log_content
+
+def process_log_content(content):
+    """Procesează conținutul log-ului și returnează tag-urile găsite."""
+    pending_tags = {}
+    
+    # Caută cereri de bucket în conținut
+    bucket_matches = re.finditer(BUCKET_REQUEST_PATTERN, content)
+    
+    for match in bucket_matches:
+        tag = match.group(1)
         
-        config_changed = False
+        # Identifică sursa (1=Reddit, 2/7=Twitter)
+        source_match = re.search(SOURCE_PATTERN, content[max(0, match.start()-100):match.end()+100])
+        if source_match:
+            source_id = int(source_match.group(1))
+            
+            # Adaugă tag-ul la lista de tag-uri în așteptare pentru această sursă
+            if source_id not in pending_tags:
+                pending_tags[source_id] = []
+            
+            if tag not in pending_tags[source_id]:
+                pending_tags[source_id].append(tag)
+                print(f"Tag nou detectat: '{tag}' pentru sursa {source_id}")
+    
+    return pending_tags
+
+def update_config_with_tags(pending_tags):
+    """Actualizează configurația cu tag-urile noi găsite."""
+    if not pending_tags:
+        return False
         
-        # Procesează tag-urile în așteptare
-        for source_id, tags in self.pending_tags.items():
-            for tag in tags:
-                # Adaugă tag-ul în configurație dacă nu există deja
-                if add_tag_to_config(self.config, tag, source_id):
-                    config_changed = True
-        
-        # Salvează configurația dacă s-a modificat
-        if config_changed:
-            if save_config(self.config):
-                self.last_config_update = time.time()
-                print("Configurația a fost actualizată cu tag-uri noi. Se repornește miner-ul.")
-                restart_miner()
-        
-        # Resetează tag-urile în așteptare
-        self.pending_tags = {}
+    # Încarcă configurația curentă
+    config = load_config()
+    if not config:
+        return False
+    
+    config_changed = False
+    
+    # Procesează tag-urile în așteptare
+    for source_id, tags in pending_tags.items():
+        for tag in tags:
+            # Adaugă tag-ul în configurație dacă nu există deja
+            if add_tag_to_config(config, tag, source_id):
+                config_changed = True
+    
+    # Salvează configurația dacă s-a modificat
+    if config_changed:
+        if save_config(config):
+            print("Configurația a fost actualizată cu tag-uri noi. Se repornește miner-ul.")
+            restart_miner()
+            return True
+    
+    return False
 
 def main():
     print(f"Monitorizare automată de tag-uri pornită la {dt.datetime.now()}")
-    print(f"Se monitorizează fișierul de log: {LOG_FILE}")
     print(f"Se va actualiza configurația: {CONFIG_FILE}")
     
-    event_handler = LogHandler()
-    observer = Observer()
+    # Scanează imediat log-urile existente la pornire
+    print("Scanare inițială a tuturor log-urilor disponibile...")
     
-    # Verifică log-urile existente la pornire
-    if os.path.exists(LOG_FILE):
-        observer.schedule(event_handler, path=os.path.dirname(LOG_FILE), recursive=False)
-        event_handler.log_file = LOG_FILE
-        # Procesează log-ul existent pentru a găsi tag-uri recente
-        event_handler.process_log()
-    elif os.path.exists(LOG_FILE_ALT):
-        observer.schedule(event_handler, path=os.path.dirname(LOG_FILE_ALT), recursive=False)
-        event_handler.log_file = LOG_FILE_ALT
-        # Procesează log-ul existent pentru a găsi tag-uri recente
-        event_handler.process_log()
-    else:
-        print("Nu s-a găsit niciun fișier de log. Se așteaptă crearea.")
-        # Încearcă să observi directorul pentru ambele fișiere log
-        if os.path.exists(os.path.dirname(LOG_FILE)):
-            observer.schedule(event_handler, path=os.path.dirname(LOG_FILE), recursive=False)
-        if os.path.exists(os.path.dirname(LOG_FILE_ALT)):
-            observer.schedule(event_handler, path=os.path.dirname(LOG_FILE_ALT), recursive=False)
+    # Combină toate sursele de log-uri posibile
+    all_logs = scan_log_files()
+    all_logs += get_pm2_logs()
+    all_logs += extract_pm2_log_commands()
     
-    observer.start()
+    # Procesează tot conținutul găsit inițial
+    if all_logs:
+        pending_tags = process_log_content(all_logs)
+        if pending_tags:
+            print(f"S-au găsit {sum(len(tags) for tags in pending_tags.values())} tag-uri noi în scanarea inițială.")
+            update_config_with_tags(pending_tags)
     
+    # Monitorizare continuă
     try:
+        last_check = time.time()
+        
         while True:
-            time.sleep(5)
-            # Actualizează imediat tag-urile așteptate dacă există
-            if event_handler.pending_tags and (time.time() - event_handler.last_config_update > 60):
-                event_handler.update_config()
+            time.sleep(30)  # Verifică la fiecare 30 de secunde
+            
+            current_time = time.time()
+            # Verifică doar la fiecare 2 minute pentru a nu consuma prea multe resurse
+            if current_time - last_check > 120:
+                print(f"Verificare periodică a log-urilor la {dt.datetime.now()}")
+                
+                # Scanează din nou toate log-urile
+                logs = scan_log_files() + get_pm2_logs()
+                
+                # Procesează conținutul
+                pending_tags = process_log_content(logs)
+                if pending_tags:
+                    update_config_with_tags(pending_tags)
+                
+                last_check = current_time
+                
     except KeyboardInterrupt:
         print("Oprire monitorizare...")
-        observer.stop()
     
-    observer.join()
+    print("Monitorizare încheiată.")
 
 if __name__ == "__main__":
     main() 
